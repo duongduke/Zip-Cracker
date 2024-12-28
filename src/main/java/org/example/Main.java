@@ -4,7 +4,6 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.stream.Stream;
 
 public class Main {
@@ -12,21 +11,15 @@ public class Main {
         String zipFileExtension = ".zip";
 
         try {
-            // Lấy thư mục resources trong classpath
             Path resourcePath = Paths.get(Main.class.getClassLoader().getResource("").toURI());
 
-            // Duyệt qua các file trong thư mục resources
             try (Stream<Path> paths = Files.walk(resourcePath)) {
-                paths.filter(Files::isRegularFile) // Chỉ lấy file thông thường
-                        .filter(path -> path.toString().endsWith(zipFileExtension)) // Lọc file ZIP
+                paths.filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(zipFileExtension))
                         .forEach(path -> {
                             try {
-                                System.out.println("Đang xử lý file: " + path.getFileName());
                                 File zipFile = path.toFile();
-                                List<String> passwords = PasswordGenerator.generateFourDigitPasswords();
-                                int threadCount = 10;
-
-                                PasswordCracker cracker = new PasswordCracker(zipFile, passwords, threadCount);
+                                PasswordCracker cracker = new PasswordCracker(zipFile, Config.THREAD_COUNT);
                                 cracker.crackPassword();
                             } catch (Exception e) {
                                 System.out.println("Lỗi khi xử lý file ZIP: " + e.getMessage());
