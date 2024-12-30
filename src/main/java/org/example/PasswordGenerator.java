@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PasswordGenerator {
-    private static final String CHARS = "0123456789abcdefghijklmnopqrstuvwxyz";
+    private static final String CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
     private static final int PASSWORD_LENGTH = 4;
     private static final int CHARS_LENGTH = CHARS.length();
     private static final int TOTAL_COMBINATIONS = (int) Math.pow(CHARS_LENGTH, PASSWORD_LENGTH);

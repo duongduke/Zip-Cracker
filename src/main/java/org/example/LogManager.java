@@ -2,7 +2,6 @@ package org.example;
 
 public class LogManager {
     private static final int COLUMN_WIDTH = 40;
-    private static final String FORMAT = "%-" + COLUMN_WIDTH + "s";
     private final int threadCount;
     private boolean isFirstLog = true;
     private final String[] currentPasswords;

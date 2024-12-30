@@ -16,17 +16,31 @@ public class PasswordCracker {
     private final File zipFile;
     private final List<List<String>> passwordsByThread;
     private final int threadCount;
-    private final LogManager logManager;
     private volatile boolean shouldStop = false;
+    private volatile boolean isPaused = false;
+    private volatile String foundPassword = null;
+    private long startTime;
 
     public PasswordCracker(File zipFile, int threadCount) {
         this.zipFile = zipFile;
         this.threadCount = threadCount;
         this.passwordsByThread = PasswordGenerator.generatePasswordsByThread(threadCount);
-        this.logManager = new LogManager(threadCount);
+    }
+
+    protected void log(int threadIndex, String message) {
+        System.out.println("Thread " + threadIndex + ": " + message);
+    }
+
+    protected void logResult(String message) {
+        System.out.println(message);
+    }
+
+    public void setPaused(boolean paused) {
+        this.isPaused = paused;
     }
 
     public void crackPassword() {
+        startTime = System.currentTimeMillis();
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         AtomicBoolean found = new AtomicBoolean(false);
 
@@ -35,28 +49,36 @@ public class PasswordCracker {
             final List<String> threadPasswords = passwordsByThread.get(i);
 
             executor.submit(() -> {
-                ProcessAffinityManager.setThreadAffinity(threadIndex % 16);
+                ProcessAffinityManager.setThreadAffinity(threadIndex);
                 ZipFile zip = new ZipFile(zipFile);
 
                 try {
                     for (String password : threadPasswords) {
+                        try {
+                            while (isPaused) {
+                                Thread.sleep(100);
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            return;
+                        }
+
                         if (found.get() || shouldStop) {
                             return;
                         }
 
                         try {
-                            logManager.log(threadIndex, "Thử mật khẩu: " + password);
+                            log(threadIndex, "Thử mật khẩu: " + password);
                             zip.setPassword(password.toCharArray());
                             zip.extractAll("output");
 
-                            // Nếu không có exception tức là mật khẩu đúng
                             found.set(true);
                             shouldStop = true;
-                            logManager.printResult("Mật khẩu đúng là: " + password);
+                            foundPassword = password;
+                            logResult("Mật khẩu đúng là: " + password);
                             executor.shutdownNow();
                             return;
                         } catch (ZipException e) {
-                            // Tiếp tục nếu sai mật khẩu
                             continue;
                         }
                     }
@@ -64,7 +86,7 @@ public class PasswordCracker {
                     try {
                         zip.close();
                     } catch (IOException e) {
-                        logManager.log(threadIndex, "Lỗi khi đóng file ZIP: " + e.getMessage());
+                        log(threadIndex, "Lỗi khi đóng file ZIP: " + e.getMessage());
                     }
                 }
             });
@@ -72,16 +94,37 @@ public class PasswordCracker {
 
         executor.shutdown();
         try {
-            if (!executor.awaitTermination(1, TimeUnit.MINUTES)) {
+            if (!executor.awaitTermination(30, TimeUnit.MINUTES)) {
                 executor.shutdownNow();
+                logResult("Quá trình tìm kiếm đã bị hủy do vượt quá thời gian.");
             }
         } catch (InterruptedException e) {
             executor.shutdownNow();
-            logManager.printResult("Quá trình thử mật khẩu bị gián đoạn!");
+            logResult("Quá trình thử mật khẩu bị gián đoạn!");
         }
 
-        if (!found.get()) {
-            logManager.printResult("Không tìm thấy mật khẩu đúng.");
+        if (found.get()) {
+            long duration = System.currentTimeMillis() - startTime;
+            String timeStr = formatDuration(duration);
+            logResult("Mật khẩu đúng là: " + foundPassword + "\nThời gian chạy: " + timeStr);
+        } else if (!executor.isTerminated()) {
+            return;
+        } else {
+            long duration = System.currentTimeMillis() - startTime;
+            String timeStr = formatDuration(duration);
+            logResult("Không tìm thấy mật khẩu đúng.\nThời gian chạy: " + timeStr);
+        }
+    }
+
+    private String formatDuration(long duration) {
+        long seconds = duration / 1000;
+        long minutes = seconds / 60;
+        seconds = seconds % 60;
+
+        if (minutes > 0) {
+            return String.format("%02d:%02d phút", minutes, seconds);
+        } else {
+            return String.format("%02d giây", seconds);
         }
     }
 }
