@@ -10,9 +10,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import org.example.Config;
 import org.example.PasswordCracker;
 import javafx.scene.layout.Priority;
+import org.example.ProcessAffinityManager;
 
 import java.io.File;
 
@@ -266,13 +266,11 @@ public class FXApplication extends Application {
             // Start cracking in background
             crackThread = new Thread(() -> {
                 try {
-                    Config.SELECTED_CORES = selectedCores;
-                    Config.THREAD_COUNT = selectedCores.length;
-                    currentCracker = new PasswordCracker(selectedFile, Config.THREAD_COUNT) {
+                    ProcessAffinityManager.setSelectedCores(selectedCores);
+                    currentCracker = new PasswordCracker(selectedFile, selectedCores.length) {
                         @Override
                         protected void log(int threadIndex, String message) {
                             Platform.runLater(() -> {
-                                // Cập nhật label trong process box
                                 processLabels[threadIndex].setText("Thread " + threadIndex + ": " + message);
                             });
                         }
