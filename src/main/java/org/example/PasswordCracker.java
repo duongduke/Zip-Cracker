@@ -5,6 +5,7 @@ import net.lingala.zip4j.exception.ZipException;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,6 +26,35 @@ public class PasswordCracker {
         this.zipFile = zipFile;
         this.threadCount = threadCount;
         this.passwordsByThread = PasswordGenerator.generatePasswordsByThread(threadCount);
+    }
+
+    public PasswordCracker(File zipFile, int threadCount, List<String> importedPasswords,
+            int passwordLength, boolean useLowercase, boolean useUppercase,
+            boolean useNumbers, boolean useSpecial) {
+        this.zipFile = zipFile;
+        this.threadCount = threadCount;
+
+        if (importedPasswords != null) {
+            this.passwordsByThread = dividePasswordsList(importedPasswords, threadCount);
+        } else {
+            this.passwordsByThread = PasswordGenerator.generatePasswordsByThread(
+                    threadCount, passwordLength, useLowercase, useUppercase,
+                    useNumbers, useSpecial);
+        }
+    }
+
+    private List<List<String>> dividePasswordsList(List<String> passwords, int threadCount) {
+        List<List<String>> result = new ArrayList<>(threadCount);
+        for (int i = 0; i < threadCount; i++) {
+            result.add(new ArrayList<>());
+        }
+
+        for (int i = 0; i < passwords.size(); i++) {
+            int threadIndex = i % threadCount;
+            result.get(threadIndex).add(passwords.get(i));
+        }
+
+        return result;
     }
 
     protected void log(int threadIndex, String message) {
@@ -94,9 +124,9 @@ public class PasswordCracker {
 
         executor.shutdown();
         try {
-            if (!executor.awaitTermination(30, TimeUnit.MINUTES)) {
+            if (!executor.awaitTermination(12, TimeUnit.HOURS)) {
                 executor.shutdownNow();
-                logResult("Quá trình tìm kiếm đã bị hủy do vượt quá thời gian.");
+                logResult("Quá trình tìm kiếm đã bị hủy do vượt quá thời gian (12 giờ).");
             }
         } catch (InterruptedException e) {
             executor.shutdownNow();

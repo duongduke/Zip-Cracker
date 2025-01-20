@@ -14,7 +14,16 @@ import org.example.PasswordCracker;
 import javafx.scene.layout.Priority;
 import org.example.ProcessAffinityManager;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Optional;
 
 public class FXApplication extends Application {
     private Button startButton;
@@ -28,6 +37,15 @@ public class FXApplication extends Application {
     private Label resultLogLabel;
     private VBox processBox;
     private Label[] processLabels;
+    private Button passwordFileButton;
+    private Label passwordFileLabel;
+    private List<String> importedPasswords;
+    private VBox passwordGenOptionsBox;
+    private TextField passwordLengthField;
+    private CheckBox lowercaseCheckbox;
+    private CheckBox uppercaseCheckbox;
+    private CheckBox numbersCheckbox;
+    private CheckBox specialCharsCheckbox;
 
     @Override
     public void start(Stage stage) {
@@ -64,6 +82,51 @@ public class FXApplication extends Application {
         fileButton.setStyle("-fx-background-color: #3c3f41; -fx-text-fill: white;");
         Label fileLabel = new Label("Chưa chọn file");
         fileLabel.setStyle("-fx-text-fill: white;");
+
+        // Password File Selection
+        passwordFileButton = new Button("Chọn File Mật khẩu (Tùy chọn)");
+        passwordFileButton.setStyle("-fx-background-color: #3c3f41; -fx-text-fill: white;");
+        passwordFileLabel = new Label("Chưa chọn file");
+        passwordFileLabel.setStyle("-fx-text-fill: white;");
+
+        // Password Generation Options
+        passwordGenOptionsBox = new VBox(5);
+        passwordGenOptionsBox.setStyle("-fx-background-color: #3c3f41; -fx-padding: 10;");
+
+        Label optionsLabel = new Label("Tùy chọn sinh mật khẩu:");
+        optionsLabel.setStyle("-fx-text-fill: white;");
+
+        // Password Length
+        HBox lengthBox = new HBox(10);
+        Label lengthLabel = new Label("Độ dài mật khẩu:");
+        lengthLabel.setStyle("-fx-text-fill: white;");
+        passwordLengthField = new TextField("4");
+        passwordLengthField.setPrefWidth(50);
+        passwordLengthField.setStyle("-fx-background-color: #2b2b2b; -fx-text-fill: white;");
+        lengthBox.getChildren().addAll(lengthLabel, passwordLengthField);
+
+        // Character types
+        lowercaseCheckbox = new CheckBox("Chữ thường (a-z)");
+        lowercaseCheckbox.setSelected(true);
+        lowercaseCheckbox.setStyle("-fx-text-fill: white;");
+
+        uppercaseCheckbox = new CheckBox("Chữ hoa (A-Z)");
+        uppercaseCheckbox.setStyle("-fx-text-fill: white;");
+
+        numbersCheckbox = new CheckBox("Số (0-9)");
+        numbersCheckbox.setSelected(true);
+        numbersCheckbox.setStyle("-fx-text-fill: white;");
+
+        specialCharsCheckbox = new CheckBox("Ký tự đặc biệt (!@#$...)");
+        specialCharsCheckbox.setStyle("-fx-text-fill: white;");
+
+        passwordGenOptionsBox.getChildren().addAll(
+                optionsLabel,
+                lengthBox,
+                lowercaseCheckbox,
+                uppercaseCheckbox,
+                numbersCheckbox,
+                specialCharsCheckbox);
 
         // Buttons Container
         HBox buttonBox = new HBox(10);
@@ -179,7 +242,10 @@ public class FXApplication extends Application {
         grid.add(cpuField, 1, 0);
         grid.add(fileButton, 0, 1);
         grid.add(fileLabel, 1, 1);
-        grid.add(buttonBox, 0, 2, 2, 1);
+        grid.add(passwordFileButton, 0, 2);
+        grid.add(passwordFileLabel, 1, 2);
+        grid.add(passwordGenOptionsBox, 0, 3, 2, 1);
+        grid.add(buttonBox, 0, 4, 2, 1);
 
         root.getChildren().addAll(
                 titleLabel,
@@ -205,6 +271,101 @@ public class FXApplication extends Application {
             }
         });
 
+        passwordFileButton.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Text files", "*.txt"));
+            File passwordFile = fileChooser.showOpenDialog(stage);
+            if (passwordFile != null) {
+                try {
+                    initLogLabel.setText("Đang đọc file mật khẩu...");
+
+                    Thread loadThread = new Thread(() -> {
+                        try {
+                            Set<String> uniquePasswords = new HashSet<>();
+                            long lineCount = 0;
+                            long duplicateCount = 0;
+                            List<String> batch = new ArrayList<>(10000); // Xử lý theo lô 10000 dòng
+
+                            try (BufferedReader reader = new BufferedReader(
+                                    new FileReader(passwordFile, StandardCharsets.UTF_8), 8192 * 32)) {
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    line = line.trim();
+                                    if (!line.isEmpty()) {
+                                        batch.add(line);
+                                        lineCount++;
+
+                                        // Xử lý theo lô để giảm tải bộ nhớ
+                                        if (batch.size() >= 10000) {
+                                            for (String pwd : batch) {
+                                                if (!uniquePasswords.add(pwd)) {
+                                                    duplicateCount++;
+                                                }
+                                            }
+                                            batch.clear();
+
+                                            // Cập nhật UI
+                                            final long count = lineCount;
+                                            final long dupes = duplicateCount;
+                                            Platform.runLater(() -> {
+                                                initLogLabel.setText(String.format(
+                                                        "Đã đọc %d mật khẩu, phát hiện %d trùng lặp...",
+                                                        count, dupes));
+                                            });
+                                        }
+                                    }
+                                }
+
+                                // Xử lý batch cuối cùng
+                                for (String pwd : batch) {
+                                    if (!uniquePasswords.add(pwd)) {
+                                        duplicateCount++;
+                                    }
+                                }
+                            }
+
+                            // Chuyển HashSet thành List để sử dụng
+                            importedPasswords = new ArrayList<>(uniquePasswords);
+                            final long finalDupes = duplicateCount;
+
+                            Platform.runLater(() -> {
+                                if (importedPasswords.isEmpty()) {
+                                    showAlert("Lỗi", "File mật khẩu trống");
+                                    importedPasswords = null;
+                                    passwordFileLabel.setText("Chưa chọn file");
+                                    passwordGenOptionsBox.setVisible(true);
+                                    return;
+                                }
+
+                                passwordFileLabel.setText(String.format("%s (%d mật khẩu duy nhất)",
+                                        passwordFile.getName(), importedPasswords.size()));
+                                initLogLabel.setText(String.format(
+                                        "Đã tải %d mật khẩu từ file %s\nĐã loại bỏ %d mật khẩu trùng lặp",
+                                        importedPasswords.size(), passwordFile.getName(), finalDupes));
+                                passwordGenOptionsBox.setVisible(false);
+                            });
+
+                        } catch (IOException ex) {
+                            Platform.runLater(() -> {
+                                showAlert("Lỗi", "Không thể đọc file mật khẩu: " + ex.getMessage());
+                                importedPasswords = null;
+                                passwordFileLabel.setText("Chưa chọn file");
+                                passwordGenOptionsBox.setVisible(true);
+                            });
+                        }
+                    });
+
+                    loadThread.start();
+                } catch (Exception ex) {
+                    showAlert("Lỗi", "Không thể đọc file mật khẩu: " + ex.getMessage());
+                    importedPasswords = null;
+                    passwordFileLabel.setText("Chưa chọn file");
+                    passwordGenOptionsBox.setVisible(true);
+                }
+            }
+        });
+
         startButton.setOnAction(e -> {
             if (crackThread != null && crackThread.isAlive()) {
                 currentCracker.setPaused(false);
@@ -226,10 +387,40 @@ public class FXApplication extends Application {
             try {
                 for (int i = 0; i < cpuStrings.length; i++) {
                     selectedCores[i] = Integer.parseInt(cpuStrings[i].trim());
+                    if (selectedCores[i] < 0) {
+                        showAlert("Lỗi", "CPU core không thể là số âm");
+                        return;
+                    }
+                }
+
+                // Thêm kiểm tra CPU cores
+                if (!validateCPUCores(selectedCores)) {
+                    return;
                 }
             } catch (NumberFormatException ex) {
                 showAlert("Lỗi", "CPU không hợp lệ");
                 return;
+            }
+
+            // Kiểm tra tùy chọn sinh mật khẩu
+            if (importedPasswords == null) {
+                // Kiểm tra các tùy chọn sinh mật khẩu
+                if (!lowercaseCheckbox.isSelected() && !uppercaseCheckbox.isSelected() &&
+                        !numbersCheckbox.isSelected() && !specialCharsCheckbox.isSelected()) {
+                    showAlert("Lỗi", "Vui lòng chọn ít nhất một loại ký tự");
+                    return;
+                }
+
+                try {
+                    int passwordLength = Integer.parseInt(passwordLengthField.getText().trim());
+                    if (passwordLength <= 0) {
+                        showAlert("Lỗi", "Độ dài mật khẩu phải lớn hơn 0");
+                        return;
+                    }
+                } catch (NumberFormatException ex) {
+                    showAlert("Lỗi", "Độ dài mật khẩu không hợp lệ");
+                    return;
+                }
             }
 
             // Disable/Enable controls
@@ -263,11 +454,27 @@ public class FXApplication extends Application {
                 }
             }
 
-            // Start cracking in background
+            // Khởi tạo PasswordCracker với các tùy chọn mới
             crackThread = new Thread(() -> {
                 try {
                     ProcessAffinityManager.setSelectedCores(selectedCores);
-                    currentCracker = new PasswordCracker(selectedFile, selectedCores.length) {
+                    int passwordLength = 4; // Giá trị mặc định
+                    boolean useLowercase = true;
+                    boolean useUppercase = false;
+                    boolean useNumbers = true;
+                    boolean useSpecial = false;
+
+                    if (importedPasswords == null) {
+                        passwordLength = Integer.parseInt(passwordLengthField.getText().trim());
+                        useLowercase = lowercaseCheckbox.isSelected();
+                        useUppercase = uppercaseCheckbox.isSelected();
+                        useNumbers = numbersCheckbox.isSelected();
+                        useSpecial = specialCharsCheckbox.isSelected();
+                    }
+
+                    currentCracker = new PasswordCracker(selectedFile, selectedCores.length,
+                            importedPasswords, passwordLength, useLowercase, useUppercase,
+                            useNumbers, useSpecial) {
                         @Override
                         protected void log(int threadIndex, String message) {
                             Platform.runLater(() -> {
@@ -284,7 +491,9 @@ public class FXApplication extends Application {
                     };
                     currentCracker.crackPassword();
                 } catch (Exception ex) {
-                    initLogLabel.setText("Lỗi: " + ex.getMessage());
+                    Platform.runLater(() -> {
+                        initLogLabel.setText("Lỗi: " + ex.getMessage());
+                    });
                 } finally {
                     Platform.runLater(() -> {
                         startButton.setText("Bắt đầu");
@@ -323,5 +532,39 @@ public class FXApplication extends Application {
         alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
+    }
+
+    // Thêm phương thức kiểm tra CPU cores
+    private boolean validateCPUCores(int[] selectedCores) {
+        int availableCores = Runtime.getRuntime().availableProcessors();
+        List<Integer> invalidCores = new ArrayList<>();
+
+        for (int core : selectedCores) {
+            if (core >= availableCores) {
+                invalidCores.add(core);
+            }
+        }
+
+        if (!invalidCores.isEmpty()) {
+            String message = String.format(
+                    "Máy tính của bạn chỉ có %d cores (0-%d).\nCác cores không hợp lệ: %s\nTiếp tục thực hiện có thể ảnh hưởng đến hiệu suất.",
+                    availableCores,
+                    availableCores - 1,
+                    invalidCores.toString());
+
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle("Cảnh báo");
+            alert.setHeaderText("CPU cores không hợp lệ");
+            alert.setContentText(message);
+
+            ButtonType continueButton = new ButtonType("Tiếp tục");
+            ButtonType cancelButton = new ButtonType("Hủy", ButtonBar.ButtonData.CANCEL_CLOSE);
+            alert.getButtonTypes().setAll(continueButton, cancelButton);
+
+            Optional<ButtonType> result = alert.showAndWait();
+            return result.isPresent() && result.get() == continueButton;
+        }
+
+        return true;
     }
 }
