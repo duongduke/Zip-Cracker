@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.Optional;
 
 public class FXApplication extends Application {
@@ -282,10 +280,8 @@ public class FXApplication extends Application {
 
                     Thread loadThread = new Thread(() -> {
                         try {
-                            Set<String> uniquePasswords = new HashSet<>();
+                            importedPasswords = new ArrayList<>();
                             long lineCount = 0;
-                            long duplicateCount = 0;
-                            List<String> batch = new ArrayList<>(10000); // Xử lý theo lô 10000 dòng
 
                             try (BufferedReader reader = new BufferedReader(
                                     new FileReader(passwordFile, StandardCharsets.UTF_8), 8192 * 32)) {
@@ -293,42 +289,23 @@ public class FXApplication extends Application {
                                 while ((line = reader.readLine()) != null) {
                                     line = line.trim();
                                     if (!line.isEmpty()) {
-                                        batch.add(line);
+                                        importedPasswords.add(line);
                                         lineCount++;
 
-                                        // Xử lý theo lô để giảm tải bộ nhớ
-                                        if (batch.size() >= 10000) {
-                                            for (String pwd : batch) {
-                                                if (!uniquePasswords.add(pwd)) {
-                                                    duplicateCount++;
-                                                }
-                                            }
-                                            batch.clear();
-
-                                            // Cập nhật UI
+                                        // Cập nhật UI sau mỗi 10000 dòng
+                                        if (lineCount % 10000 == 0) {
                                             final long count = lineCount;
-                                            final long dupes = duplicateCount;
                                             Platform.runLater(() -> {
                                                 initLogLabel.setText(String.format(
-                                                        "Đã đọc %d mật khẩu, phát hiện %d trùng lặp...",
-                                                        count, dupes));
+                                                        "Đã đọc %d mật khẩu...",
+                                                        count));
                                             });
                                         }
                                     }
                                 }
-
-                                // Xử lý batch cuối cùng
-                                for (String pwd : batch) {
-                                    if (!uniquePasswords.add(pwd)) {
-                                        duplicateCount++;
-                                    }
-                                }
                             }
 
-                            // Chuyển HashSet thành List để sử dụng
-                            importedPasswords = new ArrayList<>(uniquePasswords);
-                            final long finalDupes = duplicateCount;
-
+                            final long finalCount = lineCount;
                             Platform.runLater(() -> {
                                 if (importedPasswords.isEmpty()) {
                                     showAlert("Lỗi", "File mật khẩu trống");
@@ -338,11 +315,11 @@ public class FXApplication extends Application {
                                     return;
                                 }
 
-                                passwordFileLabel.setText(String.format("%s (%d mật khẩu duy nhất)",
+                                passwordFileLabel.setText(String.format("%s (%d mật khẩu)",
                                         passwordFile.getName(), importedPasswords.size()));
                                 initLogLabel.setText(String.format(
-                                        "Đã tải %d mật khẩu từ file %s\nĐã loại bỏ %d mật khẩu trùng lặp",
-                                        importedPasswords.size(), passwordFile.getName(), finalDupes));
+                                        "Đã tải %d mật khẩu từ file %s",
+                                        finalCount, passwordFile.getName()));
                                 passwordGenOptionsBox.setVisible(false);
                             });
 
