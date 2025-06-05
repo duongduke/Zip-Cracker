@@ -13,11 +13,8 @@ ZIP Password Cracker là ứng dụng giải mã file ZIP được bảo vệ b�
 - Hiển thị tiến trình và kết quả tìm kiếm
 
 ## Công nghệ sử dụng
-- **Java:** Ngôn ngữ lập trình chính
-- **Maven:** Quản lý project và dependencies
-- **zip4j:** Thư viện xử lý file ZIP mạnh mẽ
+- **zip4j:** Thư viện xử lý file ZIP của Java
 - **JNA (Java Native Access):** Cho phép tương tác với native system functions (ví dụ: process affinity)
-- **JavaFX:** (Sử dụng cho giao diện người dùng đồ họa - tùy chọn)
 
 ## Yêu cầu hệ thống
 - Windows 7/8/10/11
@@ -26,7 +23,7 @@ ZIP Password Cracker là ứng dụng giải mã file ZIP được bảo vệ b�
 ## Cách sử dụng
 1. Tải file ZIP từ phần Releases
 2. Giải nén file ZIP vừa tải về
-3. Click đúp vào file `run.bat` để chạy chương trình
+3. Click vào file `run.bat` để chạy chương trình
 4. Trong giao diện chương trình:
    - Nhập số CPU cores muốn sử dụng (ví dụ: 0,1,2)
    - Chọn file ZIP cần giải mã
